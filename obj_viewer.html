@@ -5,15 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D OBJ Viewer</title>
     <style>
-        * {
+        body {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: #1a1a1a;
             color: white;
             overflow: hidden;
         }
@@ -27,106 +23,69 @@
         #viewer {
             width: 100%;
             height: 100%;
-            cursor: grab;
-        }
-
-        #viewer:active {
-            cursor: grabbing;
         }
 
         #controls {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            border-radius: 10px;
-            backdrop-filter: blur(10px);
-            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 1000;
+            min-width: 200px;
+        }
+
+        #controls h3 {
+            margin: 0 0 15px 0;
+            color: #4CAF50;
         }
 
         #fileInput {
-            margin-bottom: 15px;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            background: rgba(255, 255, 255, 0.1);
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 5px;
+            background: #333;
+            border: 1px solid #555;
             color: white;
-            cursor: pointer;
+            border-radius: 3px;
         }
 
-        #fileInput::file-selector-button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-right: 10px;
+        .slider-group {
+            margin-bottom: 10px;
         }
 
-        .control-group {
-            margin-bottom: 15px;
-        }
-
-        .control-group label {
+        .slider-group label {
             display: block;
             margin-bottom: 5px;
             font-size: 12px;
-            text-transform: uppercase;
-            opacity: 0.8;
         }
 
-        .control-group input[type="range"] {
+        .slider-group input {
             width: 100%;
-            margin-bottom: 5px;
-        }
-
-        .control-group input[type="color"] {
-            width: 100%;
-            height: 30px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
         }
 
         #info {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 10px;
-            backdrop-filter: blur(10px);
-            font-size: 12px;
-            max-width: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            max-width: 250px;
         }
 
-        #loading {
+        #status {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             padding: 20px;
-            border-radius: 10px;
+            border-radius: 5px;
             text-align: center;
             display: none;
-        }
-
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top: 3px solid #4CAF50;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -138,321 +97,139 @@
             <h3>3D OBJ Viewer</h3>
             <input type="file" id="fileInput" accept=".obj" />
             
-            <div class="control-group">
-                <label>Beleuchtung</label>
-                <input type="range" id="lightIntensity" min="0" max="2" step="0.1" value="1">
+            <div class="slider-group">
+                <label>Beleuchtung:</label>
+                <input type="range" id="lightSlider" min="0" max="2" step="0.1" value="1">
             </div>
             
-            <div class="control-group">
-                <label>Objektfarbe</label>
-                <input type="color" id="objectColor" value="#ffffff">
-            </div>
-            
-            <div class="control-group">
-                <label>Hintergrund</label>
-                <input type="color" id="backgroundColor" value="#2a5298">
+            <div class="slider-group">
+                <label>Rotation:</label>
+                <input type="range" id="rotationSlider" min="0" max="1" step="0.1" value="0">
             </div>
         </div>
         
         <div id="info">
             <strong>Steuerung:</strong><br>
-            • Maus ziehen: Objekt rotieren<br>
+            • Maus: Objekt rotieren<br>
             • Mausrad: Zoom<br>
-            • Rechtsklick + ziehen: Kamera bewegen<br>
-            <br>
-            <strong>Unterstützte Formate:</strong> .obj
+            • Datei hochladen: .obj Dateien
         </div>
         
-        <div id="loading">
-            <div class="spinner"></div>
-            <div>Lade 3D-Objekt...</div>
+        <div id="status">
+            <div>Lade...</div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // Prüfe ob Three.js geladen wurde
-        if (typeof THREE === 'undefined') {
-            document.body.innerHTML = '<div style="color: red; padding: 20px; font-size: 18px;">Fehler: Three.js konnte nicht geladen werden. Überprüfen Sie Ihre Internetverbindung.</div>';
-            throw new Error('Three.js not loaded');
-        }
-        
-        console.log('Three.js loaded successfully:', THREE.REVISION);
-        let scene, camera, renderer, controls;
-        let currentObject = null;
+        // Globale Variablen
+        let scene, camera, renderer, currentObject;
         let ambientLight, directionalLight;
-        
-        // Einfache Orbit Controls Implementation
-        class SimpleOrbitControls {
-            constructor(camera, domElement) {
-                this.camera = camera;
-                this.domElement = domElement;
-                this.target = new THREE.Vector3();
-                
-                this.isMouseDown = false;
-                this.mouseButton = 0;
-                this.mouseX = 0;
-                this.mouseY = 0;
-                
-                this.spherical = new THREE.Spherical();
-                this.spherical.setFromVector3(camera.position);
-                
-                this.domElement.addEventListener('mousedown', this.onMouseDown.bind(this));
-                this.domElement.addEventListener('mousemove', this.onMouseMove.bind(this));
-                this.domElement.addEventListener('mouseup', this.onMouseUp.bind(this));
-                this.domElement.addEventListener('wheel', this.onWheel.bind(this));
-            }
-            
-            onMouseDown(event) {
-                this.isMouseDown = true;
-                this.mouseButton = event.button;
-                this.mouseX = event.clientX;
-                this.mouseY = event.clientY;
-            }
-            
-            onMouseMove(event) {
-                if (!this.isMouseDown) return;
-                
-                const deltaX = event.clientX - this.mouseX;
-                const deltaY = event.clientY - this.mouseY;
-                
-                if (this.mouseButton === 0) { // Linke Maustaste - Rotation
-                    this.spherical.theta -= deltaX * 0.01;
-                    this.spherical.phi += deltaY * 0.01;
-                    this.spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, this.spherical.phi));
-                    
-                    this.camera.position.setFromSpherical(this.spherical);
-                    this.camera.lookAt(this.target);
-                }
-                
-                this.mouseX = event.clientX;
-                this.mouseY = event.clientY;
-            }
-            
-            onMouseUp() {
-                this.isMouseDown = false;
-            }
-            
-            onWheel(event) {
-                this.spherical.radius += event.deltaY * 0.01;
-                this.spherical.radius = Math.max(1, Math.min(50, this.spherical.radius));
-                
-                this.camera.position.setFromSpherical(this.spherical);
-                this.camera.lookAt(this.target);
-            }
-        }
-        
-        // Einfacher OBJ Loader
-        class SimpleOBJLoader {
-            load(url, onLoad, onProgress, onError) {
-                fetch(url)
-                    .then(response => response.text())
-                    .then(text => {
-                        const object = this.parse(text);
-                        onLoad(object);
-                    })
-                    .catch(onError);
-            }
-            
-            loadFromFile(file, onLoad, onProgress, onError) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const object = this.parse(event.target.result);
-                        onLoad(object);
-                    } catch (e) {
-                        onError(e);
-                    }
-                };
-                reader.readAsText(file);
-            }
-            
-            parse(text) {
-                const vertices = [];
-                const normals = [];
-                const uvs = [];
-                const faces = [];
-                
-                const lines = text.split('\n');
-                
-                for (let line of lines) {
-                    line = line.trim();
-                    if (line.startsWith('v ')) {
-                        const parts = line.split(/\s+/);
-                        vertices.push(
-                            parseFloat(parts[1]),
-                            parseFloat(parts[2]),
-                            parseFloat(parts[3])
-                        );
-                    } else if (line.startsWith('vn ')) {
-                        const parts = line.split(/\s+/);
-                        normals.push(
-                            parseFloat(parts[1]),
-                            parseFloat(parts[2]),
-                            parseFloat(parts[3])
-                        );
-                    } else if (line.startsWith('vt ')) {
-                        const parts = line.split(/\s+/);
-                        uvs.push(
-                            parseFloat(parts[1]),
-                            parseFloat(parts[2])
-                        );
-                    } else if (line.startsWith('f ')) {
-                        const parts = line.split(/\s+/).slice(1);
-                        for (let i = 0; i < parts.length; i++) {
-                            const indices = parts[i].split('/');
-                            faces.push(parseInt(indices[0]) - 1);
-                        }
-                    }
-                }
-                
-                const geometry = new THREE.BufferGeometry();
-                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-                
-                if (normals.length > 0) {
-                    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-                } else {
-                    geometry.computeVertexNormals();
-                }
-                
-                if (faces.length > 0) {
-                    geometry.setIndex(faces);
-                }
-                
-                const material = new THREE.MeshLambertMaterial({ color: 0xffffff });
-                const mesh = new THREE.Mesh(geometry, material);
-                
-                // Objekt zentrieren
-                const box = new THREE.Box3().setFromObject(mesh);
-                const center = box.getCenter(new THREE.Vector3());
-                mesh.position.sub(center);
-                
-                const group = new THREE.Group();
-                group.add(mesh);
-                
-                return group;
-            }
+        let isMouseDown = false;
+        let mouseX = 0, mouseY = 0;
+        let rotationSpeed = 0;
+
+        // Prüfe Three.js
+        if (typeof THREE === 'undefined') {
+            document.body.innerHTML = '<div style="padding: 20px; color: red;">Three.js konnte nicht geladen werden!</div>';
+        } else {
+            console.log('Three.js geladen, Version:', THREE.REVISION);
+            init();
         }
 
         function init() {
-            console.log('Initializing 3D viewer...');
+            console.log('Starte Initialisierung...');
             
-            try {
-                // Scene erstellen
-                scene = new THREE.Scene();
-                console.log('Scene created');
-                
-                // Kamera erstellen
-                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                camera.position.set(5, 5, 5);
-                console.log('Camera created');
-                
-                // Renderer erstellen
-                renderer = new THREE.WebGLRenderer({ antialias: true });
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                renderer.setClearColor(0x2a5298);
-                renderer.shadowMap.enabled = true;
-                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                console.log('Renderer created');
-                
-                const viewerElement = document.getElementById('viewer');
-                if (!viewerElement) {
-                    throw new Error('Viewer element not found');
-                }
-                viewerElement.appendChild(renderer.domElement);
-                console.log('Renderer added to DOM');
-                
-                // Beleuchtung
-                ambientLight = new THREE.AmbientLight(0x404040, 0.4);
-                scene.add(ambientLight);
-                
-                directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-                directionalLight.position.set(5, 5, 5);
-                directionalLight.castShadow = true;
-                scene.add(directionalLight);
-                console.log('Lights added');
-                
-                // Controls
-                controls = new SimpleOrbitControls(camera, renderer.domElement);
-                console.log('Controls initialized');
-                
-                // Event Listeners
-                setupEventListeners();
-                console.log('Event listeners set up');
-                
-                // Standard Objekt laden (Würfel)
-                loadDefaultObject();
-                console.log('Default object loaded');
-                
-                animate();
-                console.log('Animation started');
-                
-            } catch (error) {
-                console.error('Error during initialization:', error);
-                document.body.innerHTML = '<div style="color: red; padding: 20px; font-size: 18px;">Fehler beim Initialisieren der 3D-Anzeige: ' + error.message + '</div>';
-            }
-        }
-        
-        function setupEventListeners() {
-            // Datei Upload
-            document.getElementById('fileInput').addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    loadOBJFile(file);
-                }
-            });
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 5);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            // Renderer zum DOM hinzufügen
+            const viewerDiv = document.getElementById('viewer');
+            viewerDiv.appendChild(renderer.domElement);
             
             // Beleuchtung
-            document.getElementById('lightIntensity').addEventListener('input', (event) => {
-                directionalLight.intensity = parseFloat(event.target.value);
+            ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Standard Würfel erstellen
+            createDefaultCube();
+            
+            // Event Listeners
+            setupEventListeners();
+            
+            // Animation starten
+            animate();
+            
+            console.log('Initialisierung abgeschlossen');
+        }
+
+        function createDefaultCube() {
+            const geometry = new THREE.BoxGeometry(2, 2, 2);
+            const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            currentObject = new THREE.Mesh(geometry, material);
+            scene.add(currentObject);
+            console.log('Standard-Würfel erstellt');
+        }
+
+        function setupEventListeners() {
+            // Datei Upload
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            
+            // Beleuchtung
+            document.getElementById('lightSlider').addEventListener('input', function(e) {
+                directionalLight.intensity = parseFloat(e.target.value);
             });
             
-            // Objektfarbe
-            document.getElementById('objectColor').addEventListener('input', (event) => {
-                if (currentObject) {
-                    currentObject.traverse((child) => {
-                        if (child.isMesh) {
-                            child.material.color.setHex(event.target.value.replace('#', '0x'));
-                        }
-                    });
-                }
+            // Rotation
+            document.getElementById('rotationSlider').addEventListener('input', function(e) {
+                rotationSpeed = parseFloat(e.target.value);
             });
             
-            // Hintergrundfarbe
-            document.getElementById('backgroundColor').addEventListener('input', (event) => {
-                renderer.setClearColor(event.target.value.replace('#', '0x'));
-            });
+            // Maus Controls
+            const canvas = renderer.domElement;
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('wheel', onMouseWheel);
             
             // Fenster Resize
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-        }
-        
-        function loadDefaultObject() {
-            // Erstelle einen einfachen Würfel als Standard
-            const geometry = new THREE.BoxGeometry(2, 2, 2);
-            const material = new THREE.MeshLambertMaterial({ color: 0xffffff });
-            const cube = new THREE.Mesh(geometry, material);
+            window.addEventListener('resize', onWindowResize);
             
-            if (currentObject) {
-                scene.remove(currentObject);
+            console.log('Event Listeners eingerichtet');
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.name.endsWith('.obj')) {
+                loadOBJFile(file);
+            } else {
+                alert('Bitte wählen Sie eine .obj Datei');
             }
-            
-            currentObject = cube;
-            scene.add(currentObject);
         }
-        
+
         function loadOBJFile(file) {
-            const loading = document.getElementById('loading');
-            loading.style.display = 'block';
+            const status = document.getElementById('status');
+            status.style.display = 'block';
             
-            const loader = new SimpleOBJLoader();
-            
-            loader.loadFromFile(file, 
-                (object) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const objData = e.target.result;
+                    const object = parseOBJ(objData);
+                    
                     // Altes Objekt entfernen
                     if (currentObject) {
                         scene.remove(currentObject);
@@ -462,36 +239,95 @@
                     currentObject = object;
                     scene.add(currentObject);
                     
-                    // Objekt skalieren falls nötig
-                    const box = new THREE.Box3().setFromObject(currentObject);
-                    const size = box.getSize(new THREE.Vector3());
-                    const maxSize = Math.max(size.x, size.y, size.z);
-                    
-                    if (maxSize > 10) {
-                        const scale = 10 / maxSize;
-                        currentObject.scale.set(scale, scale, scale);
-                    }
-                    
-                    loading.style.display = 'none';
-                },
-                (progress) => {
-                    console.log('Loading progress:', progress);
-                },
-                (error) => {
-                    console.error('Error loading OBJ file:', error);
-                    alert('Fehler beim Laden der OBJ-Datei. Stellen Sie sicher, dass es sich um eine gültige .obj-Datei handelt.');
-                    loading.style.display = 'none';
+                    status.style.display = 'none';
+                    console.log('OBJ Datei geladen');
+                } catch (error) {
+                    console.error('Fehler beim Laden der OBJ Datei:', error);
+                    alert('Fehler beim Laden der OBJ Datei');
+                    status.style.display = 'none';
                 }
-            );
+            };
+            reader.readAsText(file);
         }
-        
+
+        function parseOBJ(objText) {
+            const vertices = [];
+            const faces = [];
+            const lines = objText.split('\n');
+            
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('v ')) {
+                    const parts = line.split(/\s+/);
+                    vertices.push(
+                        parseFloat(parts[1]),
+                        parseFloat(parts[2]),
+                        parseFloat(parts[3])
+                    );
+                } else if (line.startsWith('f ')) {
+                    const parts = line.split(/\s+/);
+                    for (let i = 1; i < parts.length; i++) {
+                        const vertexIndex = parseInt(parts[i].split('/')[0]) - 1;
+                        faces.push(vertexIndex);
+                    }
+                }
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setIndex(faces);
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            return new THREE.Mesh(geometry, material);
+        }
+
+        function onMouseDown(event) {
+            isMouseDown = true;
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        }
+
+        function onMouseMove(event) {
+            if (!isMouseDown) return;
+            
+            const deltaX = event.clientX - mouseX;
+            const deltaY = event.clientY - mouseY;
+            
+            if (currentObject) {
+                currentObject.rotation.y += deltaX * 0.01;
+                currentObject.rotation.x += deltaY * 0.01;
+            }
+            
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        }
+
+        function onMouseUp() {
+            isMouseDown = false;
+        }
+
+        function onMouseWheel(event) {
+            camera.position.z += event.deltaY * 0.01;
+            camera.position.z = Math.max(1, Math.min(20, camera.position.z));
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
         function animate() {
             requestAnimationFrame(animate);
+            
+            // Automatische Rotation
+            if (currentObject && rotationSpeed > 0) {
+                currentObject.rotation.y += rotationSpeed * 0.01;
+            }
+            
             renderer.render(scene, camera);
         }
-        
-        // Initialisierung starten
-        init();
     </script>
 </body>
 </html>
