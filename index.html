@@ -115,6 +115,14 @@
                 <input type="range" id="rotationSlider" min="0" max="1" step="0.1" value="0">
             </div>
             
+            <button id="fitToViewBtn" style="width: 100%; padding: 8px; margin: 10px 0; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                Objekt anpassen
+            </button>
+            
+            <button id="wireframeBtn" style="width: 100%; padding: 8px; margin: 5px 0; background: #333; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                Wireframe umschalten
+            </button>
+            
             <div id="fileInfo" style="display: none;">
                 <strong>Datei Info:</strong><br>
                 <span id="triangleCount">-</span> Dreiecke<br>
@@ -212,6 +220,20 @@
                 rotationSpeed = parseFloat(e.target.value);
             });
             
+            // Fit to View Button
+            document.getElementById('fitToViewBtn').addEventListener('click', function() {
+                if (currentObject) {
+                    fitObjectToView(currentObject);
+                }
+            });
+            
+            // Wireframe Button
+            document.getElementById('wireframeBtn').addEventListener('click', function() {
+                if (currentObject) {
+                    currentObject.material.wireframe = !currentObject.material.wireframe;
+                }
+            });
+            
             // Maus Controls
             const canvas = renderer.domElement;
             canvas.addEventListener('mousedown', onMouseDown);
@@ -256,6 +278,13 @@
                     // Objekt zentrieren und skalieren
                     centerAndScaleObject(currentObject);
                     
+                    // Zusätzliche Überprüfung
+                    console.log('Object added to scene');
+                    console.log('Object position:', currentObject.position);
+                    console.log('Object scale:', currentObject.scale);
+                    console.log('Object visible:', currentObject.visible);
+                    console.log('Material:', currentObject.material);
+                    
                     // Datei-Info anzeigen
                     showFileInfo(object.geometry, file.size);
                     
@@ -279,6 +308,9 @@
             const firstBytes = new Uint8Array(buffer, 0, 5);
             const isASCII = String.fromCharCode(...firstBytes).toLowerCase() === 'solid';
             
+            console.log('STL type:', isASCII ? 'ASCII' : 'Binary');
+            console.log('File size:', buffer.byteLength, 'bytes');
+            
             if (isASCII) {
                 return parseASCIISTL(new TextDecoder().decode(buffer));
             } else {
@@ -293,6 +325,8 @@
             
             let currentNormal = null;
             let vertexCount = 0;
+            
+            console.log('Parsing ASCII STL, lines:', lines.length);
             
             for (let line of lines) {
                 line = line.trim();
@@ -320,17 +354,29 @@
                 }
             }
             
+            console.log('Parsed vertices:', vertices.length / 3);
+            console.log('Sample vertices:', vertices.slice(0, 9));
+            
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
             
-            const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            if (normals.length > 0) {
+                geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+            } else {
+                geometry.computeVertexNormals();
+            }
+            
+            const material = new THREE.MeshLambertMaterial({ 
+                color: 0x00ff00,
+                side: THREE.DoubleSide
+            });
             return new THREE.Mesh(geometry, material);
         }
 
         function parseBinarySTL(view) {
             // Header überspringen (80 bytes)
             const triangleCount = view.getUint32(80, true);
+            console.log('Binary STL triangles:', triangleCount);
             
             const vertices = [];
             const normals = [];
@@ -357,11 +403,22 @@
                 }
             }
             
+            console.log('Parsed vertices:', vertices.length / 3);
+            console.log('Sample vertices:', vertices.slice(0, 9));
+            
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
             
-            const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            if (normals.length > 0) {
+                geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+            } else {
+                geometry.computeVertexNormals();
+            }
+            
+            const material = new THREE.MeshLambertMaterial({ 
+                color: 0x00ff00,
+                side: THREE.DoubleSide
+            });
             return new THREE.Mesh(geometry, material);
         }
 
@@ -371,15 +428,48 @@
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
             
+            console.log('Bounding Box:', box);
+            console.log('Center:', center);
+            console.log('Size:', size);
+            
             // Objekt zentrieren
             object.position.sub(center);
             
             // Objekt skalieren um in den Viewport zu passen
             const maxSize = Math.max(size.x, size.y, size.z);
+            console.log('Max size:', maxSize);
+            
             if (maxSize > 0) {
-                const scale = 3 / maxSize;
+                const scale = 4 / maxSize; // Etwas größer machen
                 object.scale.setScalar(scale);
+                console.log('Applied scale:', scale);
             }
+            
+            // Kamera zurücksetzen
+            camera.position.set(0, 0, 8);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function fitObjectToView(object) {
+            // Neue Bounding Box nach aktueller Transformation
+            const box = new THREE.Box3().setFromObject(object);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            
+            console.log('Fit to view - Box:', box);
+            console.log('Fit to view - Center:', center);
+            console.log('Fit to view - Size:', size);
+            
+            // Objekt zur Mitte bewegen
+            object.position.set(0, 0, 0);
+            
+            // Kamera optimal positionieren
+            const maxSize = Math.max(size.x, size.y, size.z);
+            const distance = maxSize * 2;
+            camera.position.set(0, 0, Math.max(distance, 5));
+            camera.lookAt(0, 0, 0);
+            
+            console.log('Camera positioned at:', camera.position);
         }
 
         function showFileInfo(geometry, fileSize) {
